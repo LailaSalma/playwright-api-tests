@@ -1,12 +1,13 @@
 import { test, expect } from './booking-client-fixtures';
-test.use({ baseURL: 'https://restful-booker.herokuapp.com' });
+import { resfulConfig } from './booking-config';
+test.use({ baseURL: resfulConfig.baseUrl });
 
 
 test('GET the booking and check firstname', async ({ bookingClient, booking }) => {
   const response = await bookingClient.getBooking(booking.bookingid);
   await expect(response).toBeOK();
   const body = await response.json();
-  expect(body.firstname).toBe('wrong');
+  expect(body.firstname).toBe('Laila');
 });
 
 test('GET the booking and check lastname & totalprice', async({ bookingClient, booking }) => {

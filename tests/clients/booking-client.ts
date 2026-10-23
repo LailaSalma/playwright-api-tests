@@ -1,4 +1,5 @@
 import type { APIRequestContext, APIResponse } from '@playwright/test';
+import { resfulConfig } from '../booking-config';
 
 export interface NewBooking {
   	firstname: string; 
@@ -9,7 +10,7 @@ export interface NewBooking {
 	additionalneeds: string;
 }
 
-const credentials = { username: "admin", password: "password123" };
+const credentials = { username: resfulConfig.username, password: resfulConfig.password };
 
 export class BookingClient {
   private request: APIRequestContext;

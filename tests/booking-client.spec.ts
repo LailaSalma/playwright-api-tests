@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { BookingClient } from './clients/booking-client';
 import type { NewBooking } from './clients/booking-client';
-test.use({ baseURL: 'https://restful-booker.herokuapp.com' });
+import { resfulConfig } from './booking-config';
+
+test.use({ baseURL: resfulConfig.baseUrl });
 
 const newBooking: NewBooking = {
   firstname: 'Laila',
