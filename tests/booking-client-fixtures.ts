@@ -1,5 +1,6 @@
 import { test as base, expect } from '@playwright/test';
 import { BookingClient } from './clients/booking-client';
+import { newBooking } from './booking-data';
 import type { NewBooking } from './clients/booking-client';
 
 type MyFixtures = {
@@ -12,18 +13,6 @@ interface CreatedBooking {
   bookingid: number;
   booking: NewBooking;
 }
-
-const newBooking: NewBooking = {
-  firstname: 'Laila',
-  lastname: 'G',
-  totalprice: 99,
-  depositpaid: true,
-  bookingdates: {
-    checkin: '2018-01-01',
-    checkout: '2019-01-01',
-  },
-  additionalneeds: 'Breakfast',
-};
 
 export const test = base.extend<MyFixtures>({
   bookingClient: async ({ request }, use) => {
