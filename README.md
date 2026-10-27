@@ -1,6 +1,6 @@
 # Playwright API Tests
 
-An API test automation project built with **Playwright Test** and **TypeScript**. It tests two public REST APIs and is structured the way a real API automation framework is: a client layer, fixtures with automatic cleanup, configuration through environment variables, a separate test-data module, and JSON Schema validation of responses.
+An API test automation project built with **Playwright Test** and **TypeScript**. It tests two public REST APIs and is structured the way a real API automation framework is: a client layer, fixtures with automatic cleanup, configuration through environment variables, a separate test-data module, JSON Schema validation of responses, and an HTML report with the API responses attached.
 
 The project is under active development. See [Roadmap](#roadmap) for what is done and what is planned.
 
@@ -18,6 +18,7 @@ The project is under active development. See [Roadmap](#roadmap) for what is don
 | Configuration from environment variables with defaults | `tests/booking-config.ts` |
 | Test data in one place, with overrides per test | `tests/booking-data.ts` |
 | Response validation against a JSON Schema (Ajv), including negative tests that prove the schema can fail | `tests/booking-schema.ts`, `tests/booking-schema.spec.ts` |
+| Reporting: one line per test in the terminal plus an HTML report; the GET response body attached to the test with `testInfo.attach` | `playwright.config.ts`, `tests/booking-client-fixtures.spec.ts` |
 
 ## Tech stack
 
@@ -37,7 +38,7 @@ Both APIs are shared public services. Tests assert rules (status, types, ranges,
 
 ```
 playwright-api-tests/
-├── playwright.config.ts          # base URL for DummyJSON, chromium project, reporter
+├── playwright.config.ts          # base URL for DummyJSON, chromium project, reporters (list + HTML)
 ├── package.json
 └── tests/
     ├── clients/
@@ -67,6 +68,7 @@ The files `booking-cleanup.spec.ts`, `fixtures.ts` and `booking-fixture.spec.ts`
 - **Fixtures say when setup and teardown run.** The `booking` fixture creates a booking through the client, hands it to the test, and deletes it after the test, whether the test passed or failed. The delete is not in the test body, so a failing assertion cannot skip it.
 - **Configuration, data and schema live in their own modules**, so a test file never contains a URL, a credential, a copy of the booking data or a copy of the response shape.
 - **Assertions check the status first** (`toBeOK`) before reading a body, and verify that a write really stored the data with a follow-up GET instead of trusting the echo in the write response.
+- **The response is attached before the assertions**, so when a test fails, the report shows the full body the API returned, not only the one field that failed.
 
 ## Getting started
 
@@ -92,12 +94,14 @@ Run every command from the project root (where `playwright.config.ts` is).
 # all tests
 npm test
 
-# one file, one line per test
-npx playwright test tests/booking-client-fixtures.spec.ts --reporter=list
+# one file
+npx playwright test tests/booking-client-fixtures.spec.ts
 
-# the HTML report of the last run
+# open the HTML report of the last run (stop with Ctrl+C)
 npx playwright show-report
 ```
+
+Every run prints one line per test in the terminal (`list` reporter) and writes an HTML report to `playwright-report/` (`html` reporter, never opened automatically). Tests attach the API response body to the report, so a failure can be diagnosed from the report without rerunning the test. The `playwright-report/` folder is generated on each run and is not committed.
 
 ## Configuration
 
@@ -128,9 +132,10 @@ Done:
 - [x] Configuration from environment variables
 - [x] Test data management
 - [x] JSON Schema validation of responses
+- [x] HTML report with attached API responses
 
 Planned:
-- [ ] Reporting (HTML report review, Allure)
+- [ ] Reporting with Allure (evaluate)
 - [ ] Parallel execution settings
 - [ ] CI with GitHub Actions (run on pull request and on a schedule, reports as artifacts, secrets)
 - [ ] UI tests with Page Objects that use the API for test data setup
