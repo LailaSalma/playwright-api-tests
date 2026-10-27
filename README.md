@@ -18,7 +18,7 @@ The project is under active development. See [Roadmap](#roadmap) for what is don
 | Configuration from environment variables with defaults | `tests/booking-config.ts` |
 | Test data in one place, with overrides per test | `tests/booking-data.ts` |
 | Response validation against a JSON Schema (Ajv), including negative tests that prove the schema can fail | `tests/booking-schema.ts`, `tests/booking-schema.spec.ts` |
-| Reporting: one line per test in the terminal plus an HTML report; the GET response body attached to the test with `testInfo.attach` | `playwright.config.ts`, `tests/booking-client-fixtures.spec.ts` |
+| Reporting: one line per test in the terminal plus an HTML report; every response attached before any check (formatted JSON, or raw text when the body is not JSON) | `playwright.config.ts`, `tests/attach-response.ts`, `tests/booking-client-fixtures.spec.ts` |
 
 ## Tech stack
 
@@ -46,6 +46,7 @@ playwright-api-tests/
     ├── booking-config.ts         # base URL and credentials from environment variables
     ├── booking-data.ts           # default booking data and a builder with overrides
     ├── booking-schema.ts         # JSON Schema of a booking and the validation helper
+    ├── attach-response.ts        # attaches a response to the HTML report (formatted JSON or raw text)
     ├── booking-client-fixtures.ts# fixtures: bookingClient, token, booking (with teardown)
     ├── booking-client.spec.ts
     ├── booking-client-fixtures.spec.ts
