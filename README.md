@@ -1,6 +1,6 @@
 # Playwright API Tests
 
-An API test automation project built with **Playwright Test** and **TypeScript**. It tests two public REST APIs and is structured the way a real API automation framework is: a client layer, fixtures with automatic cleanup, configuration through environment variables, a separate test-data module, JSON Schema validation of responses, and an HTML report with the API responses attached.
+An API test automation project built with **Playwright Test** and **TypeScript**. It tests two public REST APIs and is structured the way a real API automation framework is: a client layer, fixtures with automatic cleanup, configuration through environment variables, a separate test-data module, JSON Schema validation of responses, an HTML report with the API responses attached, and parallel execution with isolated test data.
 
 The project is under active development. See [Roadmap](#roadmap) for what is done and what is planned.
 
@@ -19,6 +19,7 @@ The project is under active development. See [Roadmap](#roadmap) for what is don
 | Test data in one place, with overrides per test | `tests/booking-data.ts` |
 | Response validation against a JSON Schema (Ajv), including negative tests that prove the schema can fail | `tests/booking-schema.ts`, `tests/booking-schema.spec.ts` |
 | Reporting: one line per test in the terminal plus an HTML report; every response attached before any check (formatted JSON, or raw text when the body is not JSON) | `playwright.config.ts`, `tests/attach-response.ts`, `tests/booking-client-fixtures.spec.ts` |
+| Parallel execution: tests run in parallel (`fullyParallel: true`); each test creates and deletes its own booking, so no two tests share a record; a group that shares one read-only booking runs on a single worker (`test.describe.configure({ mode: 'default' })`) | `playwright.config.ts`, `tests/booking-cleanup.spec.ts` |
 
 ## Tech stack
 
@@ -38,7 +39,7 @@ Both APIs are shared public services. Tests assert rules (status, types, ranges,
 
 ```
 playwright-api-tests/
-├── playwright.config.ts          # base URL for DummyJSON, chromium project, reporters (list + HTML)
+├── playwright.config.ts          # base URL for DummyJSON, chromium project, reporters (list + HTML), fullyParallel
 ├── package.json
 └── tests/
     ├── clients/
@@ -51,7 +52,7 @@ playwright-api-tests/
     ├── booking-client.spec.ts
     ├── booking-client-fixtures.spec.ts
     ├── booking-schema.spec.ts
-    ├── booking-cleanup.spec.ts   # hooks-based setup/teardown (earlier approach)
+    ├── booking-cleanup.spec.ts   # hooks-based setup/teardown (earlier approach); one read-only group runs on one worker
     ├── fixtures.ts               # fixtures with raw requests (earlier approach)
     ├── booking-fixture.spec.ts
     ├── products.spec.ts
@@ -70,6 +71,7 @@ The files `booking-cleanup.spec.ts`, `fixtures.ts` and `booking-fixture.spec.ts`
 - **Configuration, data and schema live in their own modules**, so a test file never contains a URL, a credential, a copy of the booking data or a copy of the response shape.
 - **Assertions check the status first** (`toBeOK`) before reading a body, and verify that a write really stored the data with a follow-up GET instead of trusting the echo in the write response.
 - **The response is attached before the assertions**, so when a test fails, the report shows the full body the API returned, not only the one field that failed.
+- **Tests run in parallel worker processes that share no variables.** Test data is created per test (fixtures) or per group, never shared between tests, so the order of execution does not matter.
 
 ## Getting started
 
@@ -92,11 +94,14 @@ npx playwright install chromium
 Run every command from the project root (where `playwright.config.ts` is).
 
 ```bash
-# all tests
+# all tests (in parallel)
 npm test
 
 # one file
 npx playwright test tests/booking-client-fixtures.spec.ts
+
+# without parallelism (one worker), useful when debugging
+npx playwright test --workers=1
 
 # open the HTML report of the last run (stop with Ctrl+C)
 npx playwright show-report
@@ -134,11 +139,11 @@ Done:
 - [x] Test data management
 - [x] JSON Schema validation of responses
 - [x] HTML report with attached API responses
+- [x] Parallel execution with isolated test data
 
 Planned:
-- [ ] Reporting with Allure (evaluate)
-- [ ] Parallel execution settings
 - [ ] CI with GitHub Actions (run on pull request and on a schedule, reports as artifacts, secrets)
+- [ ] Allure report with run history (planned together with CI)
 - [ ] UI tests with Page Objects that use the API for test data setup
 
 ## Author
