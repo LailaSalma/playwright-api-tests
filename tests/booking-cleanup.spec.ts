@@ -1,19 +1,20 @@
 import { test, expect } from '@playwright/test';
-test.use({ baseURL: 'https://restful-booker.herokuapp.com' });
+import { resfulConfig } from './booking-config';
+import { newBooking, buildBooking } from './booking-data';
 
+test.use({ baseURL: resfulConfig.baseUrl });
+
+const credentials = { username: resfulConfig.username, password: resfulConfig.password };
 let token: string;
 
 test.beforeAll('Get Token', async ({ request }) => {
-	const response = await request.post('/auth', { data: { username: "admin", password: "password123" } });
+	const response = await request.post('/auth', { data: credentials });
 	await expect(response).toBeOK();
 	token = (await response.json()).token;
 	expect(token).toBeDefined();
 });
 
 test.describe( 'Create Bookings and Cleanup', () => {
-	const newBooking = { firstname: "Laila", lastname: "G" , totalprice: 99 , depositpaid: true,
-				    bookingdates: {checkin: "2018-01-01" , checkout: "2019-01-01"}, 
-				    additionalneeds: "Breakfast" };
 	let id: number;
 	
 	test.beforeEach('Create A Booking', async ({ request }) => {
@@ -31,7 +32,7 @@ test.describe( 'Create Bookings and Cleanup', () => {
 	});
 	
 	test(`PUT booking updates lastname`, async ({ request }) => {
-		const updatedBooking = { ...newBooking, lastname: "G_Updated" };
+		const updatedBooking = buildBooking({lastname: "G_Updated"});
 		const response = await request.put(`/booking/${id}`, { data: updatedBooking, headers: { Cookie: `token=${token}` } });
 		
 		await expect(response).toBeOK();
@@ -51,10 +52,7 @@ test.describe( 'Create Bookings and Cleanup', () => {
 });
 
 test.describe('GET bookings and cleanup in afterAll', () => {
-	const newBooking = { firstname: "Salma", lastname: "NG" , totalprice: 99 , depositpaid: true,
-				    bookingdates: {checkin: "2018-01-01" , checkout: "2019-01-01"}, 
-				    additionalneeds: "Breakfast" };
-				    
+	test.describe.configure({ mode: 'default' });
 	let id: number;
 				    
 	test.beforeAll('Create A Booking', async ({ request }) => {
