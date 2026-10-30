@@ -1,6 +1,8 @@
 # Playwright API Tests
 
-An API test automation project built with **Playwright Test** and **TypeScript**. It tests two public REST APIs and is structured the way a real API automation framework is: a client layer, fixtures with automatic cleanup, configuration through environment variables, a separate test-data module, JSON Schema validation of responses, an HTML report with the API responses attached, and parallel execution with isolated test data.
+![API tests](https://github.com/LailaSalma/playwright-api-tests/actions/workflows/api-tests.yml/badge.svg)
+
+An API test automation project built with **Playwright Test** and **TypeScript**. It tests two public REST APIs and is structured the way a real API automation framework is: a client layer, fixtures with automatic cleanup, configuration through environment variables, a separate test-data module, JSON Schema validation of responses, an HTML report with the API responses attached, parallel execution with isolated test data, and a GitHub Actions pipeline that runs the suite on every push and pull request.
 
 The project is under active development. See [Roadmap](#roadmap) for what is done and what is planned.
 
@@ -20,6 +22,7 @@ The project is under active development. See [Roadmap](#roadmap) for what is don
 | Response validation against a JSON Schema (Ajv), including negative tests that prove the schema can fail | `tests/booking-schema.ts`, `tests/booking-schema.spec.ts` |
 | Reporting: one line per test in the terminal plus an HTML report; every response attached before any check (formatted JSON, or raw text when the body is not JSON) | `playwright.config.ts`, `tests/attach-response.ts`, `tests/booking-client-fixtures.spec.ts` |
 | Parallel execution: tests run in parallel (`fullyParallel: true`); each test creates and deletes its own booking, so no two tests share a record; a group that shares one read-only booking runs on a single worker (`test.describe.configure({ mode: 'default' })`) | `playwright.config.ts`, `tests/booking-cleanup.spec.ts` |
+| CI with GitHub Actions: the suite runs on a fresh runner on every push and pull request to `main`; the HTML report is uploaded as an artifact even when tests fail | `.github/workflows/api-tests.yml` |
 
 ## Tech stack
 
@@ -27,6 +30,7 @@ The project is under active development. See [Roadmap](#roadmap) for what is don
 - TypeScript
 - [Ajv](https://ajv.js.org/) for JSON Schema validation
 - Node.js and npm
+- GitHub Actions for CI
 
 ## APIs under test
 
@@ -39,8 +43,12 @@ Both APIs are shared public services. Tests assert rules (status, types, ranges,
 
 ```
 playwright-api-tests/
-├── playwright.config.ts          # base URL for DummyJSON, chromium project, reporters (list + HTML), fullyParallel
+├── .github/
+│   └── workflows/
+│       └── api-tests.yml         # CI: install, run the suite, upload the HTML report as an artifact
+├── playwright.config.ts          # base URL for DummyJSON, chromium project, reporters (list + HTML), fullyParallel, CI settings
 ├── package.json
+├── package-lock.json             # exact dependency versions; CI installs from it with npm ci
 └── tests/
     ├── clients/
     │   └── booking-client.ts     # BookingClient: how to talk to the Restful-Booker API
@@ -80,8 +88,10 @@ Prerequisites: a Node.js version supported by Playwright (22, 24 or 26) and npm.
 ```bash
 git clone https://github.com/LailaSalma/playwright-api-tests.git
 cd playwright-api-tests
-npm install
+npm ci
 ```
+
+`npm ci` installs the exact versions from `package-lock.json`, the same way the CI pipeline does. Every package the tests import must be listed in `package.json`; a package installed only elsewhere on your machine would pass locally and fail in CI.
 
 The API tests send HTTP requests directly and do not open a browser. Only the scaffold file `tests/example.spec.ts` uses one; to run it, install the browser with:
 
@@ -108,6 +118,35 @@ npx playwright show-report
 ```
 
 Every run prints one line per test in the terminal (`list` reporter) and writes an HTML report to `playwright-report/` (`html` reporter, never opened automatically). Tests attach the API response body to the report, so a failure can be diagnosed from the report without rerunning the test. The `playwright-report/` folder is generated on each run and is not committed.
+
+## Continuous integration
+
+The workflow `.github/workflows/api-tests.yml` runs on GitHub Actions.
+
+**When it runs:** on every push to `main` and on every pull request into `main`. A failing run marks the commit or pull request with a red check.
+
+**What it does, in order:**
+
+1. Checks out the repository on a fresh Ubuntu runner
+2. Installs the current Node.js LTS
+3. Installs dependencies with `npm ci`
+4. Installs Chromium with its system libraries (`npx playwright install --with-deps chromium`)
+5. Runs the full suite (`npx playwright test`)
+6. Uploads `playwright-report/` as the artifact `playwright-report`; this step runs even when tests fail (`if: ${{ !cancelled() }}`), so the report of a failing run is always available
+
+**Reading a failure:** open the run in the **Actions** tab, download `playwright-report` from the Artifacts section (kept for 30 days), unzip it and open it with:
+
+```bash
+npx playwright show-report <extracted-folder>
+```
+
+**Settings that differ in CI.** GitHub sets the environment variable `CI=true` on its runners, and `playwright.config.ts` reads it:
+
+| Setting | Locally | In CI | Why |
+|---|---|---|---|
+| `workers` | chosen by Playwright | `1` | tests run one after another on the runner |
+| `retries` | `0` | `2` | a failing test is retried up to 2 times; a test that passes on a retry is reported as **flaky** and the run stays green, so flaky counts must be investigated |
+| `forbidOnly` | `false` | `true` | a forgotten `test.only` fails the run instead of silently running a single test |
 
 ## Configuration
 
@@ -140,10 +179,11 @@ Done:
 - [x] JSON Schema validation of responses
 - [x] HTML report with attached API responses
 - [x] Parallel execution with isolated test data
+- [x] CI with GitHub Actions on push and pull request, HTML report uploaded as an artifact
 
 Planned:
-- [ ] CI with GitHub Actions (run on pull request and on a schedule, reports as artifacts, secrets)
-- [ ] Allure report with run history (planned together with CI)
+- [ ] CI: scheduled runs and secrets
+- [ ] Allure report with run history
 - [ ] UI tests with Page Objects that use the API for test data setup
 
 ## Author
