@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test('GET product/1', async ({ request }) => {
-	const response = await request.get('/products/1');
+	const response = await request.get('/products/999999');
 	expect(response.status()).toBe(200);
 	const body = await response.json();
 	expect(body.id).toBe(1);
