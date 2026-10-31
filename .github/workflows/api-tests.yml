@@ -6,6 +6,10 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  schedule:
+    - cron: '45 6 * * *'
+      timezone: "Africa/Cairo"
+  workflow_dispatch:
 
 jobs:
   APItests:
