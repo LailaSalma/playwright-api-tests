@@ -2,7 +2,7 @@
 
 ![API tests](https://github.com/LailaSalma/playwright-api-tests/actions/workflows/api-tests.yml/badge.svg)
 
-An API test automation project built with **Playwright Test** and **TypeScript**. It tests two public REST APIs and is structured the way a real API automation framework is: a client layer, fixtures with automatic cleanup, configuration through environment variables, a separate test-data module, JSON Schema validation of responses, an HTML report with the API responses attached, parallel execution with isolated test data, and a GitHub Actions pipeline that runs the suite on every push and pull request.
+An API test automation project built with **Playwright Test** and **TypeScript**. It tests two public REST APIs and is structured the way a real API automation framework is: a client layer, fixtures with automatic cleanup, configuration through environment variables, a separate test-data module, JSON Schema validation of responses, an HTML report with the API responses attached, parallel execution with isolated test data, and a GitHub Actions pipeline that runs the suite on every push and pull request, once a day on a schedule and on demand, with its settings read from repository secrets and variables.
 
 The project is under active development. See [Roadmap](#roadmap) for what is done and what is planned.
 
@@ -22,7 +22,8 @@ The project is under active development. See [Roadmap](#roadmap) for what is don
 | Response validation against a JSON Schema (Ajv), including negative tests that prove the schema can fail | `tests/booking-schema.ts`, `tests/booking-schema.spec.ts` |
 | Reporting: one line per test in the terminal plus an HTML report; every response attached before any check (formatted JSON, or raw text when the body is not JSON) | `playwright.config.ts`, `tests/attach-response.ts`, `tests/booking-client-fixtures.spec.ts` |
 | Parallel execution: tests run in parallel (`fullyParallel: true`); each test creates and deletes its own booking, so no two tests share a record; a group that shares one read-only booking runs on a single worker (`test.describe.configure({ mode: 'default' })`) | `playwright.config.ts`, `tests/booking-cleanup.spec.ts` |
-| CI with GitHub Actions: the suite runs on a fresh runner on every push and pull request to `main`; the HTML report is uploaded as an artifact even when tests fail | `.github/workflows/api-tests.yml` |
+| CI with GitHub Actions: the suite runs on a fresh runner on every push and pull request to `main`, once a day on a schedule and on demand; the HTML report is uploaded as an artifact even when tests fail | `.github/workflows/api-tests.yml` |
+| Secrets in CI: the base URL comes from a repository variable, the credentials from repository secrets passed only to the test step and masked in the logs; the wiring was verified with a deliberately wrong secret value | `.github/workflows/api-tests.yml`, `tests/booking-config.ts` |
 
 ## Tech stack
 
@@ -45,7 +46,7 @@ Both APIs are shared public services. Tests assert rules (status, types, ranges,
 playwright-api-tests/
 ├── .github/
 │   └── workflows/
-│       └── api-tests.yml         # CI: install, run the suite, upload the HTML report as an artifact
+│       └── api-tests.yml         # CI: triggers (push, PR, daily schedule, manual), install, run the suite with secrets, upload the HTML report
 ├── playwright.config.ts          # base URL for DummyJSON, chromium project, reporters (list + HTML), fullyParallel, CI settings
 ├── package.json
 ├── package-lock.json             # exact dependency versions; CI installs from it with npm ci
@@ -123,7 +124,11 @@ Every run prints one line per test in the terminal (`list` reporter) and writes 
 
 The workflow `.github/workflows/api-tests.yml` runs on GitHub Actions.
 
-**When it runs:** on every push to `main` and on every pull request into `main`. A failing run marks the commit or pull request with a red check.
+**When it runs:**
+
+- on every push to `main` and on every pull request into `main`; a failing run marks the commit or pull request with a red check
+- every day at 06:45 Cairo time (`schedule` with `timezone: "Africa/Cairo"`), on the latest commit of `main`; this catches changes and outages on the API side that come without any commit in this repository. GitHub may start scheduled runs a few minutes late when it is busy
+- on demand: **Actions** tab → **API tests** → **Run workflow** (`workflow_dispatch`)
 
 **What it does, in order:**
 
@@ -131,7 +136,7 @@ The workflow `.github/workflows/api-tests.yml` runs on GitHub Actions.
 2. Installs the current Node.js LTS
 3. Installs dependencies with `npm ci`
 4. Installs Chromium with its system libraries (`npx playwright install --with-deps chromium`)
-5. Runs the full suite (`npx playwright test`)
+5. Runs the full suite (`npx playwright test`) with the Restful-Booker settings from the repository variable and secrets (see below)
 6. Uploads `playwright-report/` as the artifact `playwright-report`; this step runs even when tests fail (`if: ${{ !cancelled() }}`), so the report of a failing run is always available
 
 **Reading a failure:** open the run in the **Actions** tab, download `playwright-report` from the Artifacts section (kept for 30 days), unzip it and open it with:
@@ -144,9 +149,23 @@ npx playwright show-report <extracted-folder>
 
 | Setting | Locally | In CI | Why |
 |---|---|---|---|
-| `workers` | chosen by Playwright | `1` | tests run one after another on the runner |
+| `workers` | chosen by Playwright | `1` | follows the Playwright recommendation for CI (stable, same order on every run). Measured: 4 workers gave no measurable gain, because the test step is about 9 s of a 33 s job and most of the job is installation. Parallel safety is still exercised by local runs |
 | `retries` | `0` | `2` | a failing test is retried up to 2 times; a test that passes on a retry is reported as **flaky** and the run stays green, so flaky counts must be investigated |
 | `forbidOnly` | `false` | `true` | a forgotten `test.only` fails the run instead of silently running a single test |
+
+### Secrets and variables in CI
+
+The workflow passes the [configuration](#configuration) values to the run from the repository settings, not from the code:
+
+| Name | Stored as | Passed to |
+|---|---|---|
+| `BOOKING_BASE_URL` | repository variable | the whole job (`env:` at job level); not sensitive, so it stays readable in the logs |
+| `BOOKING_USERNAME` | repository secret | only the `Test APIs` step (`env:` at step level); masked as `***` in the logs |
+| `BOOKING_PASSWORD` | repository secret | only the `Test APIs` step (`env:` at step level); masked as `***` in the logs |
+
+**Running the pipeline on a fork:** in the fork, open **Settings → Secrets and variables → Actions** and create the variable and the two secrets above at **repository** level (not environment level), with the names exactly as listed.
+
+**Why a green run does not prove the secrets are used:** a missing or misspelled secret reaches the run as an empty value, and the config then falls back to its default, so the run stays green. The wiring was therefore verified once with a deliberately wrong secret value: the run turned red (403 on the requests that need a token) and turned green again after the value was restored. Pull requests from forks receive no secrets at all and run with the defaults.
 
 ## Configuration
 
@@ -166,7 +185,7 @@ BOOKING_BASE_URL=https://staging.example.com npx playwright test tests/booking-c
 
 The DummyJSON base URL is set in `playwright.config.ts`.
 
-Real secrets must never be given a default in code. They would come from the environment or from the secret store of the CI system.
+In CI the values come from repository secrets and a variable (see [Secrets and variables in CI](#secrets-and-variables-in-ci)). The credentials of this API are public demo values, so the config keeps them as defaults and local runs work without any setup. Real secrets must never be given a default in code: for a real API, the credential defaults would be removed, values would come from a git-ignored `.env` file locally and from the secret store in CI, and a missing value would stop the run with a clear error.
 
 ## Roadmap
 
@@ -180,9 +199,10 @@ Done:
 - [x] HTML report with attached API responses
 - [x] Parallel execution with isolated test data
 - [x] CI with GitHub Actions on push and pull request, HTML report uploaded as an artifact
+- [x] CI: daily scheduled run, manual run, settings from repository secrets and variables
 
 Planned:
-- [ ] CI: scheduled runs and secrets
+- [ ] Fail at login when the credentials are wrong (today a wrong password surfaces later, as a 403 on the cleanup `DELETE`)
 - [ ] Allure report with run history
 - [ ] UI tests with Page Objects that use the API for test data setup
 
