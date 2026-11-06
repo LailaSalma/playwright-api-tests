@@ -13,6 +13,8 @@
   "devDependencies": {
     "@playwright/test": "^1.64.0",
     "@types/node": "^26.6.5",
-    "ajv": "^8.20.0"
+    "ajv": "^8.20.0",
+    "allure": "^3.33.0",
+    "allure-playwright": "^3.14.0"
   }
 }
