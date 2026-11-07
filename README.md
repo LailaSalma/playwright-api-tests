@@ -2,9 +2,9 @@
 
 ![API tests](https://github.com/LailaSalma/playwright-api-tests/actions/workflows/api-tests.yml/badge.svg)
 
-An API test automation project built with **Playwright Test** and **TypeScript**. It tests two public REST APIs and is structured the way a real API automation framework is: a client layer, fixtures with automatic cleanup, configuration through environment variables, a separate test-data module, JSON Schema validation of responses, an HTML report with the API responses attached, an Allure report with run history, parallel execution with isolated test data, and a GitHub Actions pipeline that runs the suite on every push and pull request, once a day on a schedule and on demand, with its settings read from repository secrets and variables.
+An API test automation project built with **Playwright Test** and **TypeScript**. It tests two public REST APIs and is structured the way a real API automation framework is: a client layer, fixtures with automatic cleanup, configuration through environment variables, a separate test-data module, JSON Schema validation of responses, an HTML report with the API responses attached, an Allure report with run history, parallel execution with isolated test data, a GitHub Actions pipeline that runs the suite on every push and pull request, once a day on a schedule and on demand, with its settings read from repository secrets and variables, and a way to run the whole suite in a Docker container from the official Playwright image.
 
-The project is under active development. See [Roadmap](#roadmap) for what is done and what is planned.
+The planned scope is complete. See [Roadmap](#roadmap) for what was built and for possible improvements.
 
 ## What this project demonstrates
 
@@ -14,9 +14,8 @@ The project is under active development. See [Roadmap](#roadmap) for what is don
 | Chained requests (a value from one response used in the next request) | `tests/chained.spec.ts` |
 | Data-driven tests with an expected status per row | `tests/products-data-driven.spec.ts` |
 | Setup and teardown with hooks (`beforeAll`, `beforeEach`, `afterEach`, `afterAll`) against an API that stores data | `tests/booking-cleanup.spec.ts` |
-| Custom fixtures with setup and teardown (token, booking) | `tests/fixtures.ts`, `tests/booking-fixture.spec.ts` |
 | API client layer: one class per API, no assertions inside the client | `tests/clients/booking-client.ts`, `tests/booking-client.spec.ts` |
-| Fixtures built on the client (client, token and booking fixtures, teardown after `use`) | `tests/booking-client-fixtures.ts`, `tests/booking-client-fixtures.spec.ts` |
+| Custom fixtures built on the client (client, token and booking fixtures, teardown after `use`) | `tests/booking-client-fixtures.ts`, `tests/booking-client-fixtures.spec.ts` |
 | Configuration from environment variables with defaults | `tests/booking-config.ts` |
 | Test data in one place, with overrides per test | `tests/booking-data.ts` |
 | Response validation against a JSON Schema (Ajv), including negative tests that prove the schema can fail | `tests/booking-schema.ts`, `tests/booking-schema.spec.ts` |
@@ -25,6 +24,7 @@ The project is under active development. See [Roadmap](#roadmap) for what is don
 | Parallel execution: tests run in parallel (`fullyParallel: true`); each test creates and deletes its own booking, so no two tests share a record; a group that shares one read-only booking runs on a single worker (`test.describe.configure({ mode: 'default' })`) | `playwright.config.ts`, `tests/booking-cleanup.spec.ts` |
 | CI with GitHub Actions: the suite runs on a fresh runner on every push and pull request to `main`, once a day on a schedule and on demand; the HTML and Allure reports are uploaded as artifacts even when tests fail | `.github/workflows/api-tests.yml` |
 | Secrets in CI: the base URL comes from a repository variable, the credentials from repository secrets passed only to the test step and masked in the logs; the wiring was verified with a deliberately wrong secret value | `.github/workflows/api-tests.yml`, `tests/booking-config.ts` |
+| Docker: the suite runs in a container from the official Playwright image, pinned to the project's Playwright version, with the project folder mounted and settings passed as environment variables; the wiring was verified with a deliberately wrong password | [Running the tests in Docker](#running-the-tests-in-docker) |
 
 ## Tech stack
 
@@ -34,6 +34,7 @@ The project is under active development. See [Roadmap](#roadmap) for what is don
 - [Allure Report 3](https://allurereport.org/) (`allure-playwright` adapter and `allure` CLI) for the report with run history
 - Node.js and npm
 - GitHub Actions for CI
+- Docker with the official [Playwright Docker image](https://playwright.dev/docs/docker) (`mcr.microsoft.com/playwright`)
 
 ## APIs under test
 
@@ -54,7 +55,7 @@ playwright-api-tests/
 ├── playwright.config.ts          # base URL for DummyJSON, chromium project, reporters (list + HTML + Allure), fullyParallel, CI settings
 ├── allurerc.mjs                  # Allure CLI settings: report name, output folder, history file
 ├── package.json
-├── package-lock.json             # exact dependency versions; CI installs from it with npm ci
+├── package-lock.json             # exact dependency versions; CI and the Docker run install from it with npm ci
 └── tests/
     ├── clients/
     │   └── booking-client.ts     # BookingClient: how to talk to the Restful-Booker API
@@ -67,8 +68,6 @@ playwright-api-tests/
     ├── booking-client-fixtures.spec.ts
     ├── booking-schema.spec.ts
     ├── booking-cleanup.spec.ts   # hooks-based setup/teardown (earlier approach); one read-only group runs on one worker
-    ├── fixtures.ts               # fixtures with raw requests (earlier approach)
-    ├── booking-fixture.spec.ts
     ├── products.spec.ts
     ├── products-write.spec.ts
     ├── chained.spec.ts
@@ -76,7 +75,7 @@ playwright-api-tests/
     └── example.spec.ts           # scaffold example from the Playwright installer (UI, needs a browser)
 ```
 
-The files `booking-cleanup.spec.ts`, `fixtures.ts` and `booking-fixture.spec.ts` show the hooks-based and raw-request approaches. They are kept for comparison with the client-based version.
+The file `booking-cleanup.spec.ts` shows the hooks-based approach. It is kept for comparison with the fixture-based version in `booking-client-fixtures.ts`.
 
 Generated output is not committed (see `.gitignore`): `playwright-report/`, `test-results/`, `allure-results/`, `allure-report/` and the local history file `allure-history.jsonl`.
 
@@ -92,7 +91,7 @@ Generated output is not committed (see `.gitignore`): `playwright-report/`, `tes
 
 ## Getting started
 
-Prerequisites: a Node.js version supported by Playwright (22, 24 or 26) and npm.
+Prerequisites: a Node.js version supported by Playwright (22, 24 or 26) and npm. To run the suite in a container instead, Docker Engine is enough (see [Running the tests in Docker](#running-the-tests-in-docker)).
 
 ```bash
 git clone https://github.com/LailaSalma/playwright-api-tests.git
@@ -142,6 +141,35 @@ npx allure open ./allure-report
 - `generate` builds the report into `allure-report/` (`--clean` replaces the previous report) and appends one line for this run to `allure-history.jsonl` (`historyPath` in `allurerc.mjs`). The report reads that file, so trends and the History tab of each test grow with every run.
 - `open` serves the report on localhost; stop it with Ctrl+C.
 - Run `generate` as a separate command, not after `&&`: when a test fails, `npx playwright test` exits with code 1 and `&&` would skip the report for exactly that run.
+
+### Running the tests in Docker
+
+The suite can run in a container from the official Playwright image, so the result does not depend on the Node.js version, browsers or packages installed on the machine. The image contains Node.js, the browsers and their system libraries; the project's own packages are installed inside the container with `npm ci`, as in CI.
+
+Prerequisite: Docker Engine, with your user allowed to run `docker` without `sudo` (Docker's post-installation steps for Linux).
+
+From the project root:
+
+```bash
+docker run --rm --ipc=host \
+  --user "$(id -u):$(id -g)" \
+  -e HOME=/tmp \
+  -v "$(pwd)":/work \
+  -w /work \
+  mcr.microsoft.com/playwright:v1.64.0-noble \
+  /bin/bash -c "npm ci && npx playwright test"
+```
+
+| Option | Why |
+|---|---|
+| `mcr.microsoft.com/playwright:v1.64.0-noble` | the image tag must match the `@playwright/test` version in `package-lock.json`; with a different version Playwright cannot find the browsers in the image. Update the tag when Playwright is upgraded |
+| `-v "$(pwd)":/work` and `-w /work` | the project folder is mounted into the container (not copied) and used as the working folder, so the reports appear in the project folder after the run |
+| `--user "$(id -u):$(id -g)"` | runs the container as your own user instead of `root`, so `node_modules/` and the report folders it writes stay owned by you |
+| `-e HOME=/tmp` | gives npm a writable home folder for its cache when running as a non-root user |
+| `--ipc=host` | recommended by the Playwright docs for Chromium, which can run out of memory in a container without it |
+| `--rm` | removes the container when the run ends |
+
+`npm ci` inside the container replaces the local `node_modules/` with a fresh install of the same versions. A container does not inherit the variables of your terminal; pass [configuration](#configuration) values with `-e`, for example `-e BOOKING_BASE_URL=https://staging.example.com`. The reports are opened afterwards on the host as described above.
 
 ## Continuous integration
 
@@ -228,7 +256,7 @@ BOOKING_BASE_URL=https://staging.example.com npx playwright test tests/booking-c
 
 The DummyJSON base URL is set in `playwright.config.ts`. The Allure report name, output folder and history file are set in `allurerc.mjs`.
 
-In CI the values come from repository secrets and a variable (see [Secrets and variables in CI](#secrets-and-variables-in-ci)). The credentials of this API are public demo values, so the config keeps them as defaults and local runs work without any setup. Real secrets must never be given a default in code: for a real API, the credential defaults would be removed, values would come from a git-ignored `.env` file locally and from the secret store in CI, and a missing value would stop the run with a clear error.
+In CI the values come from repository secrets and a variable (see [Secrets and variables in CI](#secrets-and-variables-in-ci)). In a Docker run they are passed with `-e` (see [Running the tests in Docker](#running-the-tests-in-docker)). The credentials of this API are public demo values, so the config keeps them as defaults and local runs work without any setup. Real secrets must never be given a default in code: for a real API, the credential defaults would be removed, values would come from a git-ignored `.env` file locally and from the secret store in CI, and a missing value would stop the run with a clear error.
 
 ## Roadmap
 
@@ -244,9 +272,7 @@ Done:
 - [x] CI with GitHub Actions on push and pull request, HTML report uploaded as an artifact
 - [x] CI: daily scheduled run, manual run, settings from repository secrets and variables
 - [x] Allure report with run history, locally and in CI (history kept in the GitHub Actions cache)
-
-Planned:
-- [ ] Run the suite in a Docker container
+- [x] Run the suite in a Docker container from the official Playwright image
 
 Possible improvements (not planned for this project):
 - Fail at login when the credentials are wrong (today a wrong password surfaces later, as a 403 on the cleanup `DELETE`)
