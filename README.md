@@ -151,13 +151,13 @@ The suite can run in a container from the official Playwright image, so the resu
 
 Prerequisite: Docker Engine, with your user allowed to run `docker` without `sudo` (Docker's post-installation steps for Linux).
 
-From the project root:
+From the project root, with Node.js and npm installed on the host:
 
 ```bash
 npm run test:docker
 ```
 
-This npm script (defined in `package.json`) runs the following command:
+This npm script (defined in `package.json`) runs the command below. With only Docker installed (no Node.js on the host), run the command directly:
 
 ```bash
 docker run --rm --ipc=host \
