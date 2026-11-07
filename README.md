@@ -123,6 +123,9 @@ npx playwright test --workers=1
 
 # open the HTML report of the last run (stop with Ctrl+C)
 npx playwright show-report
+
+# all tests inside a Docker container (see below)
+npm run test:docker
 ```
 
 Every run prints one line per test in the terminal (`list` reporter) and writes an HTML report to `playwright-report/` (`html` reporter, never opened automatically). Tests attach the API response body to the report, so a failure can be diagnosed from the report without rerunning the test.
@@ -149,6 +152,12 @@ The suite can run in a container from the official Playwright image, so the resu
 Prerequisite: Docker Engine, with your user allowed to run `docker` without `sudo` (Docker's post-installation steps for Linux).
 
 From the project root:
+
+```bash
+npm run test:docker
+```
+
+This npm script (defined in `package.json`) runs the following command:
 
 ```bash
 docker run --rm --ipc=host \

@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "playwright test"
+    "test": "playwright test",
+    "test:docker": "docker run --rm --ipc=host --user \"$(id -u):$(id -g)\" -e HOME=/tmp -v \"$(pwd)\":/work -w /work mcr.microsoft.com/playwright:v1.64.0-noble /bin/bash -c 'npm ci && npx playwright test'"
   },
   "keywords": [],
   "author": "",
